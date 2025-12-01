@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.routes.health import router as health_router
@@ -25,6 +26,24 @@ def create_app() -> FastAPI:
     app = FastAPI(title="koa-doc-pipeline", version="0.1.0")
 
     ensure_template_ready()
+
+    # --- Configuração de CORS (Adicionado) ---
+    # Permite requisições de origens comuns de frontend (React/Vite/Next)
+    origins = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Em produção, substitua ["*"] pela lista 'origins' acima para segurança
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    # -----------------------------------------
 
     app.add_middleware(RequestIdMiddleware)
 
