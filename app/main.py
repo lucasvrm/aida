@@ -27,23 +27,25 @@ def create_app() -> FastAPI:
 
     ensure_template_ready()
 
-    # --- Configuração de CORS (Adicionado) ---
-    # Permite requisições de origens comuns de frontend (React/Vite/Next)
+    # --- Configuração de CORS (Atualizado para Produção) ---
     origins = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "https://pipedesk.vercel.app",  # <--- SEU DOMÍNIO DE PRODUÇÃO (Adicionado)
+        "https://pipedesk-koa.vercel.app" # Adicionei variações comuns por garantia
     ]
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Em produção, substitua ["*"] pela lista 'origins' acima para segurança
+        # Importante: allow_origins com lista específica é necessário quando allow_credentials=True
+        allow_origins=origins, 
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    # -----------------------------------------
+    # -------------------------------------------------------
 
     app.add_middleware(RequestIdMiddleware)
 
