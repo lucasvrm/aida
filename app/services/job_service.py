@@ -12,6 +12,7 @@ from app.core.utils import safe_filename
 from app.extractors.pdf_text import extract_pdf_text
 from app.extractors.tabular import extract_tabular
 from app.extractors.gemini import GeminiClient
+from app.extractors.prompts import get_prompt_for_doc_type  # <--- NOVO IMPORT
 from app.models.enums import DocType
 from app.models.payload import ConsolidatedPayload
 from app.models.schemas import (
@@ -153,12 +154,16 @@ class JobService:
                     text = (text_res.payload.get("text") or "").strip()
                     if not text:
                         raise ExtractionError(
-                            "PDF sem texto extraível (scan). OCR não implementado.",
+                            "PDF sem texto extraível (nem OCR funcionou).",
                             details={"doc_id": doc_id, "path": storage_path},
                         )
 
                     client = GeminiClient()
-                    prompt = _build_pdf_prompt(doc_type, text)
+                    
+                    # --- MUDANÇA AQUI: Usando o prompt especializado ---
+                    prompt = get_prompt_for_doc_type(doc_type, text)
+                    # ---------------------------------------------------
+                    
                     patch = client.generate_structured(prompt, PdfExtractionResponse)
 
                     kv = patch.get("kv") or {}
@@ -219,39 +224,3 @@ def _evt(level: str, event: str, extra: dict | None = None) -> dict:
     if extra:
         d.update(extra)
     return d
-
-def _build_pdf_prompt(doc_type: DocType, text: str) -> str:
-    expected_table = {
-        DocType.ENDIVIDAMENTO: "Endividamento",
-        DocType.RECEBIVEIS: "Recebíveis",
-        DocType.TIPOLOGIA: "Tipologia",
-        DocType.LANDBANK: "Landbank",
-        DocType.FATURAMENTO: "Viabilidade Financeira",
-    }.get(doc_type)
-
-    rules = [
-        "Retorne JSON estritamente válido.",
-        "Não invente dados.",
-        "Para tabelas, use como keys as LETRAS das colunas do template (ex.: 'B','C',...).",
-        "Para valores BRL, devolva número decimal (1234567.89).",
-        "Para datas, devolva ISO 'YYYY-MM-DD' quando possível.",
-        "Se não encontrar uma tabela com segurança, deixe tables vazio e use kv (Geral/Projeto) só quando tiver certeza.",
-    ]
-
-    hint = f"DocType informado: {doc_type.value}."
-    if expected_table:
-        hint += f" Tente produzir patch para a tabela '{expected_table}'."
-        hint += " Se tiver colunas duplicadas (ex.: Recebíveis), escolha a letra correta explicitamente."
-
-    return f"""Você é um extrator de dados pt-BR para planilha KOA.
-
-{hint}
-
-REGRAS:
-- {chr(10).join(rules)}
-
-TEXTO EXTRAÍDO (delimitado):
-<<<
-{text[:180000]}
->>>
-"""
