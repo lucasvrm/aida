@@ -63,6 +63,7 @@ create table if not exists public.aida_jobs (
   aida_id uuid primary key default gen_random_uuid(),
   aida_project_id uuid not null references public.aida_projects(aida_id) on delete cascade,
   aida_status text not null default 'created' check (aida_status in ('created','processing','ready','failed')),
+  aida_run_number int not null default 1,
   aida_logs jsonb not null default '[]'::jsonb,
   aida_created_at timestamptz not null default now(),
   aida_updated_at timestamptz not null default now()
