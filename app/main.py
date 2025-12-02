@@ -13,6 +13,7 @@ from app.template.bootstrap import ensure_template_ready
 
 log = get_logger("app")
 
+
 class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         rid = request.headers.get("x-request-id")
@@ -22,25 +23,17 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
             response.headers["x-request-id"] = rid
         return response
 
+
 def create_app() -> FastAPI:
     app = FastAPI(title="koa-doc-pipeline", version="0.1.0")
 
     ensure_template_ready()
 
-    # --- Configuração de CORS (Atualizado para Produção) ---
-    origins = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "https://pipedesk.vercel.app",  # <--- SEU DOMÍNIO DE PRODUÇÃO (Adicionado)
-        "https://pipedesk-koa.vercel.app" # Adicionei variações comuns por garantia
-    ]
-
+    # --- ConfiguraÃ§Ã£o de CORS (Atualizado para ProduÃ§Ã£o) ---
+    # Utiliza regex para aceitar qualquer origem localhost ou subdomÃ­nio vercel.app
     app.add_middleware(
         CORSMiddleware,
-        # Importante: allow_origins com lista específica é necessário quando allow_credentials=True
-        allow_origins=origins, 
+        allow_origin_regex=r"https?://.*(localhost|vercel\.app).*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -71,7 +64,9 @@ def create_app() -> FastAPI:
 
     return app
 
+
 app = create_app()
+
 
 @app.get("/")
 def root():
