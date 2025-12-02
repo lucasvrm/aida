@@ -46,6 +46,8 @@ class JobService:
             project = self.db.get_project(req.project_id)
             if not project:
                 raise NotFound("project_id não existe.")
+            if project.get("aida_status") in ("failed", "processing"):
+                raise Conflict("Não é possível criar job para projetos em processamento ou falha.")
             project_id = req.project_id
             if webhook_url and project.get("aida_webhook_url") != webhook_url:
                 self.db.update_project(project_id, {"aida_webhook_url": webhook_url})
@@ -72,9 +74,7 @@ class JobService:
         self.db.append_job_log(job_id, _evt("info", "job_created", {"project_id": project_id, "run_number": run_number}))
 
         for d in req.documents:
-            doc = self.db.create_document(project_id, d.doc_type.value, d.storage_path, d.original_filename)
-            # Atualiza status do documento para queued
-            self.db.update_document(doc["aida_id"], {"aida_status": "queued"})
+            self.db.create_document(project_id, d.doc_type.value, d.storage_path, d.original_filename)
 
         # Atualiza status do job para processing
         self.db.update_job(job_id, {"aida_status": "processing"})
@@ -120,6 +120,21 @@ class JobService:
         return CreateJobResponse(job_id=job_id, project_id=project_id, status="processing", run_number=run_number)
 
     async def kickoff_job(self, job_id: str) -> None:
+        job = self.db.get_job(job_id)
+        if not job:
+            return
+
+        project_id = job.get("aida_project_id")
+        project = self.db.get_project(project_id) if project_id else None
+
+        if not project:
+            self._abort_job(job_id, "Projeto removido antes do início.", project_id)
+            return
+
+        if project.get("aida_status") == "failed":
+            self._abort_job(job_id, "Projeto está com status failed.", project_id)
+            return
+
         asyncio.create_task(run_in_threadpool(self._process_job_sync, job_id))
 
     async def get_job_status(self, job_id: str) -> JobStatusResponse:
@@ -194,6 +209,11 @@ class JobService:
         project_id = job["aida_project_id"]
         project = self.db.get_project(project_id)
         if not project:
+            self._abort_job(job_id, "Projeto foi deletado durante o processamento.", project_id)
+            return
+
+        if project.get("aida_status") == "failed":
+            self._abort_job(job_id, "Projeto está com status failed.", project_id)
             return
 
         try:
@@ -222,7 +242,7 @@ class JobService:
                 if ext in (".xlsx", ".xlsm", ".csv"):
                     res = extract_tabular(doc_type, content, ext)
                     extracted_docs.append(res.payload)
-                    self.db.update_document(doc_id, {"aida_status": "done", "aida_extracted_payload": res.payload})
+                    self.db.update_document(doc_id, {"aida_status": "ready", "aida_extracted_payload": res.payload})
                     if res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": res.warnings}))
                         self._send_webhook(project, job, "doc_warnings", {"doc_id": doc_id, "warnings": res.warnings})
@@ -257,7 +277,7 @@ class JobService:
                         if table_name and rows:
                             extracted_docs.append({"table": table_name, "rows": rows})
 
-                    self.db.update_document(doc_id, {"aida_status": "done", "aida_extracted_payload": patch})
+                    self.db.update_document(doc_id, {"aida_status": "ready", "aida_extracted_payload": patch})
                     if text_res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": text_res.warnings}))
                         self._send_webhook(project, job, "doc_warnings", {"doc_id": doc_id, "warnings": text_res.warnings})
@@ -305,7 +325,7 @@ class JobService:
 
             # Atualiza documentos pendentes para failed
             for d in self.db.list_documents_by_project(project_id):
-                if d["aida_status"] in ("queued", "processing", "created"):
+                if d["aida_status"] in ("processing", "created"):
                     self.db.update_document(d["aida_id"], {"aida_status": "failed", "aida_error": str(e)})
 
     def _send_webhook(

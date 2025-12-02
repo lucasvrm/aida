@@ -1,17 +1,36 @@
+import importlib
+import json
 import os
+from pathlib import Path
 
 import pytest
 
+# Garantir variáveis de ambiente necessárias para carregar Settings
+DEFAULT_ENV = {
+    "INTERNAL_API_TOKEN": "test-internal-token",
+    "SUPABASE_URL": "https://example.supabase.co",
+    "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+    "GEMINI_API_KEY": "gemini-test-key",
+}
 
-os.environ.setdefault("INTERNAL_API_TOKEN", "test-token-1234567890")
-os.environ.setdefault("SUPABASE_URL", "http://localhost")
-os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "dummy-key")
-os.environ.setdefault("GEMINI_API_KEY", "dummy-gemini")
+for key, value in DEFAULT_ENV.items():
+    os.environ.setdefault(key, value)
+
+# Recarrega settings para usar valores de teste
+import app.core.config as config
+importlib.reload(config)
 
 
-@pytest.fixture(autouse=True)
-def set_required_env(monkeypatch):
-    monkeypatch.setenv("INTERNAL_API_TOKEN", os.environ["INTERNAL_API_TOKEN"])
-    monkeypatch.setenv("SUPABASE_URL", os.environ["SUPABASE_URL"])
-    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-    monkeypatch.setenv("GEMINI_API_KEY", os.environ["GEMINI_API_KEY"])
+@pytest.fixture
+def settings():
+    return config.settings
+
+
+@pytest.fixture
+def load_json_fixture():
+    def _loader(filename: str):
+        path = Path(__file__).parent / "fixtures" / filename
+        with path.open("r", encoding="utf-8") as fp:
+            return json.load(fp)
+
+    return _loader

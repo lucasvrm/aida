@@ -9,6 +9,7 @@ def normalize_header(s: str) -> str:
     s = s or ""
     s = s.replace("²", "")
     s = s.replace("\u00a0", " ")
+    s = s.translate(str.maketrans({"²": ""}))
     s = s.replace("\n", " ")
     s = re.sub(r"\s+", " ", s).strip()
     s = strip_accents(s).lower()

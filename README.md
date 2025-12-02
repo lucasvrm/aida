@@ -47,6 +47,15 @@ gunicorn -c gunicorn.conf.py app.main:app
 Execute o SQL:
 - `sql/001_init.sql`
 
+## Segurança / RLS (Supabase)
+
+As tabelas usam RLS habilitado com política permitindo apenas a role `service_role`,
+pois o backend acessa o banco usando essa credencial. Usuários autenticados do Pipedesk
+não têm acesso direto aos dados; para liberar leitura por usuário seria necessário
+amarrar `auth.uid()` a um identificador de projeto (ex.: `aida_project_id`) e criar
+políticas específicas. Até lá, considere que somente o service role deve consultar
+essas tabelas.
+
 ## API (contrato)
 
 ### POST /v1/jobs

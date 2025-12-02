@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
+from app.core.errors import NotFound
 from app.supabase.client import supabase_client
 
 class DB:
@@ -67,8 +68,16 @@ class DB:
         res = self.sb.table("aida_jobs").select("*").eq("aida_id", job_id).limit(1).execute()
         return res.data[0] if res.data else None
 
-    def update_job(self, job_id: str, patch: dict[str, Any]) -> None:
-        self.sb.table("aida_jobs").update(patch).eq("aida_id", job_id).execute()
+    def update_job(self, job_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
+        res = (
+            self.sb
+            .table("aida_jobs")
+            .update(patch)
+            .eq("aida_id", job_id)
+            .select("*, aida_updated_at")
+            .execute()
+        )
+        return res.data[0] if res.data else None
 
     def append_job_log(self, job_id: str, event: dict[str, Any]) -> None:
         job = self.get_job(job_id)
@@ -97,6 +106,11 @@ class DB:
             "aida_status": "created",
         }
         res = self.sb.table("aida_documents").insert(payload).execute()
+        if not getattr(res, "data", None):
+            raise NotFound(
+                "Projeto não existe ou foi removido.",
+                details=getattr(res, "error", None),
+            )
         return res.data[0]
 
     def update_document(self, doc_id: str, patch: dict[str, Any]) -> None:

@@ -1,0 +1,11 @@
+{
+  "project_name": "Projeto de Teste",
+  "documents": [
+    {
+      "doc_type": "OUTRO",
+      "storage_path": "uploads/planilha.csv",
+      "original_filename": "planilha.csv",
+      "notes": "Documento de teste"
+    }
+  ]
+}
