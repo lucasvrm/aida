@@ -88,3 +88,18 @@ class PdfExtractionResponse(BaseModel):
     kv: dict[str, dict[str, Any]] = Field(default_factory=dict)  # {"Geral": {...}, "Projeto": {...}}
     tables: list[PdfTablePatch] = Field(default_factory=list)
     notes: str | None = None
+
+
+class StatusCounts(BaseModel):
+    total: int
+    created: int
+    processing: int
+    ready: int
+    failed: int
+
+
+class MetricsResponse(BaseModel):
+    projects: StatusCounts
+    jobs: StatusCounts
+    documents: int
+    recent_logs: list[dict[str, Any]] = Field(default_factory=list)
