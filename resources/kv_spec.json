@@ -1,1 +1,356 @@
-{}
+{
+  "by_label_norm": {
+    "campo geral 01": {
+      "label": "Campo Geral 01",
+      "label_cell": "B2",
+      "value_cell": "C2"
+    },
+    "campo geral 02": {
+      "label": "Campo Geral 02",
+      "label_cell": "B3",
+      "value_cell": "C3"
+    },
+    "campo geral 03": {
+      "label": "Campo Geral 03",
+      "label_cell": "B4",
+      "value_cell": "C4"
+    },
+    "campo geral 04": {
+      "label": "Campo Geral 04",
+      "label_cell": "B5",
+      "value_cell": "C5"
+    },
+    "campo geral 05": {
+      "label": "Campo Geral 05",
+      "label_cell": "B6",
+      "value_cell": "C6"
+    },
+    "campo geral 06": {
+      "label": "Campo Geral 06",
+      "label_cell": "B7",
+      "value_cell": "C7"
+    },
+    "campo geral 07": {
+      "label": "Campo Geral 07",
+      "label_cell": "B8",
+      "value_cell": "C8"
+    },
+    "campo geral 08": {
+      "label": "Campo Geral 08",
+      "label_cell": "B9",
+      "value_cell": "C9"
+    },
+    "campo geral 09": {
+      "label": "Campo Geral 09",
+      "label_cell": "B10",
+      "value_cell": "C10"
+    },
+    "campo geral 10": {
+      "label": "Campo Geral 10",
+      "label_cell": "B11",
+      "value_cell": "C11"
+    },
+    "campo geral 11": {
+      "label": "Campo Geral 11",
+      "label_cell": "B12",
+      "value_cell": "C12"
+    },
+    "campo geral 12": {
+      "label": "Campo Geral 12",
+      "label_cell": "B13",
+      "value_cell": "C13"
+    },
+    "campo geral 13": {
+      "label": "Campo Geral 13",
+      "label_cell": "B14",
+      "value_cell": "C14"
+    },
+    "campo geral 14": {
+      "label": "Campo Geral 14",
+      "label_cell": "B15",
+      "value_cell": "C15"
+    },
+    "campo geral 15": {
+      "label": "Campo Geral 15",
+      "label_cell": "B16",
+      "value_cell": "C16"
+    },
+    "campo geral 16": {
+      "label": "Campo Geral 16",
+      "label_cell": "B17",
+      "value_cell": "C17"
+    },
+    "campo geral 17": {
+      "label": "Campo Geral 17",
+      "label_cell": "B18",
+      "value_cell": "C18"
+    },
+    "campo geral 18": {
+      "label": "Campo Geral 18",
+      "label_cell": "B19",
+      "value_cell": "C19"
+    },
+    "campo geral 19": {
+      "label": "Campo Geral 19",
+      "label_cell": "E2",
+      "value_cell": "F2"
+    },
+    "campo geral 20": {
+      "label": "Campo Geral 20",
+      "label_cell": "E3",
+      "value_cell": "F3"
+    },
+    "campo geral 21": {
+      "label": "Campo Geral 21",
+      "label_cell": "E4",
+      "value_cell": "F4"
+    },
+    "campo geral 22": {
+      "label": "Campo Geral 22",
+      "label_cell": "E5",
+      "value_cell": "F5"
+    },
+    "campo geral 23": {
+      "label": "Campo Geral 23",
+      "label_cell": "E6",
+      "value_cell": "F6"
+    },
+    "campo geral 24": {
+      "label": "Campo Geral 24",
+      "label_cell": "E7",
+      "value_cell": "F7"
+    },
+    "campo geral 25": {
+      "label": "Campo Geral 25",
+      "label_cell": "E8",
+      "value_cell": "F8"
+    },
+    "campo geral 26": {
+      "label": "Campo Geral 26",
+      "label_cell": "E9",
+      "value_cell": "F9"
+    },
+    "campo geral 27": {
+      "label": "Campo Geral 27",
+      "label_cell": "E10",
+      "value_cell": "F10"
+    },
+    "campo geral 28": {
+      "label": "Campo Geral 28",
+      "label_cell": "E11",
+      "value_cell": "F11"
+    },
+    "campo geral 29": {
+      "label": "Campo Geral 29",
+      "label_cell": "E12",
+      "value_cell": "F12"
+    },
+    "campo geral 30": {
+      "label": "Campo Geral 30",
+      "label_cell": "E13",
+      "value_cell": "F13"
+    },
+    "campo geral 31": {
+      "label": "Campo Geral 31",
+      "label_cell": "E14",
+      "value_cell": "F14"
+    },
+    "campo geral 32": {
+      "label": "Campo Geral 32",
+      "label_cell": "E15",
+      "value_cell": "F15"
+    },
+    "campo geral 33": {
+      "label": "Campo Geral 33",
+      "label_cell": "E16",
+      "value_cell": "F16"
+    },
+    "campo geral 34": {
+      "label": "Campo Geral 34",
+      "label_cell": "E17",
+      "value_cell": "F17"
+    },
+    "campo geral 35": {
+      "label": "Campo Geral 35",
+      "label_cell": "E18",
+      "value_cell": "F18"
+    }
+  },
+  "pairs": [
+    {
+      "label": "Campo Geral 01",
+      "label_cell": "B2",
+      "value_cell": "C2"
+    },
+    {
+      "label": "Campo Geral 02",
+      "label_cell": "B3",
+      "value_cell": "C3"
+    },
+    {
+      "label": "Campo Geral 03",
+      "label_cell": "B4",
+      "value_cell": "C4"
+    },
+    {
+      "label": "Campo Geral 04",
+      "label_cell": "B5",
+      "value_cell": "C5"
+    },
+    {
+      "label": "Campo Geral 05",
+      "label_cell": "B6",
+      "value_cell": "C6"
+    },
+    {
+      "label": "Campo Geral 06",
+      "label_cell": "B7",
+      "value_cell": "C7"
+    },
+    {
+      "label": "Campo Geral 07",
+      "label_cell": "B8",
+      "value_cell": "C8"
+    },
+    {
+      "label": "Campo Geral 08",
+      "label_cell": "B9",
+      "value_cell": "C9"
+    },
+    {
+      "label": "Campo Geral 09",
+      "label_cell": "B10",
+      "value_cell": "C10"
+    },
+    {
+      "label": "Campo Geral 10",
+      "label_cell": "B11",
+      "value_cell": "C11"
+    },
+    {
+      "label": "Campo Geral 11",
+      "label_cell": "B12",
+      "value_cell": "C12"
+    },
+    {
+      "label": "Campo Geral 12",
+      "label_cell": "B13",
+      "value_cell": "C13"
+    },
+    {
+      "label": "Campo Geral 13",
+      "label_cell": "B14",
+      "value_cell": "C14"
+    },
+    {
+      "label": "Campo Geral 14",
+      "label_cell": "B15",
+      "value_cell": "C15"
+    },
+    {
+      "label": "Campo Geral 15",
+      "label_cell": "B16",
+      "value_cell": "C16"
+    },
+    {
+      "label": "Campo Geral 16",
+      "label_cell": "B17",
+      "value_cell": "C17"
+    },
+    {
+      "label": "Campo Geral 17",
+      "label_cell": "B18",
+      "value_cell": "C18"
+    },
+    {
+      "label": "Campo Geral 18",
+      "label_cell": "B19",
+      "value_cell": "C19"
+    },
+    {
+      "label": "Campo Geral 19",
+      "label_cell": "E2",
+      "value_cell": "F2"
+    },
+    {
+      "label": "Campo Geral 20",
+      "label_cell": "E3",
+      "value_cell": "F3"
+    },
+    {
+      "label": "Campo Geral 21",
+      "label_cell": "E4",
+      "value_cell": "F4"
+    },
+    {
+      "label": "Campo Geral 22",
+      "label_cell": "E5",
+      "value_cell": "F5"
+    },
+    {
+      "label": "Campo Geral 23",
+      "label_cell": "E6",
+      "value_cell": "F6"
+    },
+    {
+      "label": "Campo Geral 24",
+      "label_cell": "E7",
+      "value_cell": "F7"
+    },
+    {
+      "label": "Campo Geral 25",
+      "label_cell": "E8",
+      "value_cell": "F8"
+    },
+    {
+      "label": "Campo Geral 26",
+      "label_cell": "E9",
+      "value_cell": "F9"
+    },
+    {
+      "label": "Campo Geral 27",
+      "label_cell": "E10",
+      "value_cell": "F10"
+    },
+    {
+      "label": "Campo Geral 28",
+      "label_cell": "E11",
+      "value_cell": "F11"
+    },
+    {
+      "label": "Campo Geral 29",
+      "label_cell": "E12",
+      "value_cell": "F12"
+    },
+    {
+      "label": "Campo Geral 30",
+      "label_cell": "E13",
+      "value_cell": "F13"
+    },
+    {
+      "label": "Campo Geral 31",
+      "label_cell": "E14",
+      "value_cell": "F14"
+    },
+    {
+      "label": "Campo Geral 32",
+      "label_cell": "E15",
+      "value_cell": "F15"
+    },
+    {
+      "label": "Campo Geral 33",
+      "label_cell": "E16",
+      "value_cell": "F16"
+    },
+    {
+      "label": "Campo Geral 34",
+      "label_cell": "E17",
+      "value_cell": "F17"
+    },
+    {
+      "label": "Campo Geral 35",
+      "label_cell": "E18",
+      "value_cell": "F18"
+    }
+  ]
+}
