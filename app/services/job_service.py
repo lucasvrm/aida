@@ -12,7 +12,7 @@ from app.core.utils import safe_filename
 from app.extractors.pdf_text import extract_pdf_text
 from app.extractors.tabular import extract_tabular
 from app.extractors.gemini import GeminiClient
-from app.extractors.prompts import get_prompt_for_doc_type  # <--- NOVO IMPORT
+from app.extractors.prompts import get_prompt_for_doc_type
 from app.models.enums import DocType
 from app.models.payload import ConsolidatedPayload
 from app.models.schemas import (
@@ -42,19 +42,24 @@ class JobService:
             project_id = req.project_id
         else:
             project = self.db.create_project(req.project_name or "Sem nome")
-            project_id = project["id"]
+            project_id = project["aida_id"]
 
-        self.db.update_project(project_id, {"status": "processing"})
+        # Atualiza status do projeto para processing
+        self.db.update_project(project_id, {"aida_status": "processing"})
 
         job = self.db.create_job(project_id)
-        job_id = job["id"]
+        job_id = job["aida_id"]
+        
         self.db.append_job_log(job_id, _evt("info", "job_created", {"project_id": project_id}))
 
         for d in req.documents:
             doc = self.db.create_document(project_id, d.doc_type.value, d.storage_path, d.original_filename)
-            self.db.update_document(doc["id"], {"status": "queued"})
+            # Atualiza status do documento para queued
+            self.db.update_document(doc["aida_id"], {"aida_status": "queued"})
 
-        self.db.update_job(job_id, {"status": "processing"})
+        # Atualiza status do job para processing
+        self.db.update_job(job_id, {"aida_status": "processing"})
+        
         return CreateJobResponse(job_id=job_id, project_id=project_id, status="processing")
 
     async def kickoff_job(self, job_id: str) -> None:
@@ -64,21 +69,22 @@ class JobService:
         job = self.db.get_job(job_id)
         if not job:
             raise NotFound("Job não existe.")
-        project_id = job["project_id"]
+        
+        project_id = job["aida_project_id"]
         docs = self.db.list_documents_by_project(project_id)
 
         return JobStatusResponse(
-            job_id=job["id"],
+            job_id=job["aida_id"],
             project_id=project_id,
-            status=job["status"],
-            logs=job.get("logs") or [],
+            status=job["aida_status"],
+            logs=job.get("aida_logs") or [],
             documents=[
                 JobDocProgress(
-                    document_id=d["id"],
-                    doc_type=d["doc_type"],
-                    storage_path=d["storage_path"],
-                    status=d["status"],
-                    error=d.get("error"),
+                    document_id=d["aida_id"],
+                    doc_type=d["aida_doc_type"],
+                    storage_path=d["aida_storage_path"],
+                    status=d["aida_status"],
+                    error=d.get("aida_error"),
                 )
                 for d in docs
             ],
@@ -88,20 +94,22 @@ class JobService:
         p = self.db.get_project(project_id)
         if not p:
             raise NotFound("Projeto não existe.")
+        
         out_url = None
-        if p.get("status") == "ready" and p.get("output_xlsx_path"):
+        # Verifica status e path usando prefixo aida_
+        if p.get("aida_status") == "ready" and p.get("aida_output_xlsx_path"):
             out_url = self.storage.signed_url(
                 settings.SUPABASE_OUTPUTS_BUCKET,
-                p["output_xlsx_path"],
+                p["aida_output_xlsx_path"],
                 settings.SIGNED_URL_TTL_SECONDS,
             )
 
         return ProjectResponse(
-            project_id=p["id"],
-            name=p["name"],
-            status=p["status"],
-            consolidated_payload=p.get("consolidated_payload"),
-            output_xlsx_path=p.get("output_xlsx_path"),
+            project_id=p["aida_id"],
+            name=p["aida_name"],
+            status=p["aida_status"],
+            consolidated_payload=p.get("aida_consolidated_payload"),
+            output_xlsx_path=p.get("aida_output_xlsx_path"),
             output_signed_url=out_url,
         )
 
@@ -109,16 +117,23 @@ class JobService:
         p = self.db.get_project(project_id)
         if not p:
             raise NotFound("Projeto não existe.")
-        if p.get("status") != "ready" or not p.get("output_xlsx_path"):
+            
+        if p.get("aida_status") != "ready" or not p.get("aida_output_xlsx_path"):
             raise Conflict("Projeto ainda não está pronto.")
-        url = self.storage.signed_url(settings.SUPABASE_OUTPUTS_BUCKET, p["output_xlsx_path"], settings.SIGNED_URL_TTL_SECONDS)
+            
+        url = self.storage.signed_url(
+            settings.SUPABASE_OUTPUTS_BUCKET, 
+            p["aida_output_xlsx_path"], 
+            settings.SIGNED_URL_TTL_SECONDS
+        )
         return OutputUrlResponse(project_id=project_id, signed_url=url)
 
     def _process_job_sync(self, job_id: str) -> None:
         job = self.db.get_job(job_id)
         if not job:
             return
-        project_id = job["project_id"]
+        
+        project_id = job["aida_project_id"]
         project = self.db.get_project(project_id)
         if not project:
             return
@@ -130,28 +145,33 @@ class JobService:
             extracted_docs: list[dict] = []
 
             for d in docs:
-                doc_id = d["id"]
-                doc_type = DocType(d["doc_type"])
+                doc_id = d["aida_id"]
+                doc_type_str = d["aida_doc_type"]
+                doc_type = DocType(doc_type_str)
+                
                 storage_bucket = settings.SUPABASE_UPLOADS_BUCKET
-                storage_path = d["storage_path"]
+                storage_path = d["aida_storage_path"]
 
-                self.db.update_document(doc_id, {"status": "processing", "error": None})
-                self.db.append_job_log(job_id, _evt("info", "doc_processing", {"doc_id": doc_id, "doc_type": doc_type.value}))
+                self.db.update_document(doc_id, {"aida_status": "processing", "aida_error": None})
+                self.db.append_job_log(job_id, _evt("info", "doc_processing", {"doc_id": doc_id, "doc_type": doc_type_str}))
 
                 content = self.storage.download(storage_bucket, storage_path)
-                ext = Path(d["original_filename"]).suffix.lower()
+                ext = Path(d["aida_original_filename"]).suffix.lower()
 
+                # --- Extração: Planilhas ---
                 if ext in (".xlsx", ".xlsm", ".csv"):
                     res = extract_tabular(doc_type, content, ext)
                     extracted_docs.append(res.payload)
-                    self.db.update_document(doc_id, {"status": "done", "extracted_payload": res.payload})
+                    self.db.update_document(doc_id, {"aida_status": "done", "aida_extracted_payload": res.payload})
                     if res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": res.warnings}))
                     continue
 
+                # --- Extração: PDFs ---
                 if ext == ".pdf":
                     text_res = extract_pdf_text(content)
                     text = (text_res.payload.get("text") or "").strip()
+                    
                     if not text:
                         raise ExtractionError(
                             "PDF sem texto extraível (nem OCR funcionou).",
@@ -160,12 +180,12 @@ class JobService:
 
                     client = GeminiClient()
                     
-                    # --- MUDANÇA AQUI: Usando o prompt especializado ---
+                    # Usa o novo sistema de prompts "cérebro"
                     prompt = get_prompt_for_doc_type(doc_type, text)
-                    # ---------------------------------------------------
                     
                     patch = client.generate_structured(prompt, PdfExtractionResponse)
 
+                    # Consolida partes do JSON do Gemini
                     kv = patch.get("kv") or {}
                     if kv:
                         extracted_docs.append({"kv": kv})
@@ -176,21 +196,24 @@ class JobService:
                         if table_name and rows:
                             extracted_docs.append({"table": table_name, "rows": rows})
 
-                    self.db.update_document(doc_id, {"status": "done", "extracted_payload": patch})
+                    self.db.update_document(doc_id, {"aida_status": "done", "aida_extracted_payload": patch})
                     if text_res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": text_res.warnings}))
                     continue
 
                 raise BadRequest(f"Extensão não suportada: {ext}", details={"doc_id": doc_id})
 
+            # Consolidação Final
             consolidated: ConsolidatedPayload = consolidate(extracted_docs)
             consolidated_public = consolidated.to_public_dict()
-            self.db.update_project(project_id, {"consolidated_payload": consolidated_public})
+            
+            self.db.update_project(project_id, {"aida_consolidated_payload": consolidated_public})
 
-            project_name = project["name"]
+            project_name = project["aida_name"]
             safe_name = safe_filename(project_name)
             out_filename = f"Planilha KOA PE - {safe_name}.xlsx"
             out_local = f"/tmp/{project_id}_{out_filename}"
+            
             write_filled_xlsx(consolidated, project_name=project_name, out_path=out_local)
 
             out_storage_path = f"{project_id}/{out_filename}"
@@ -202,18 +225,20 @@ class JobService:
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
 
-            self.db.update_project(project_id, {"status": "ready", "output_xlsx_path": out_storage_path})
-            self.db.update_job(job_id, {"status": "ready"})
+            self.db.update_project(project_id, {"aida_status": "ready", "aida_output_xlsx_path": out_storage_path})
+            self.db.update_job(job_id, {"aida_status": "ready"})
             self.db.append_job_log(job_id, _evt("info", "job_ready", {"output_path": out_storage_path}))
 
         except Exception as e:
-            self.db.update_project(project_id, {"status": "failed"})
-            self.db.update_job(job_id, {"status": "failed"})
+            # Em caso de falha, atualiza tudo para failed
+            self.db.update_project(project_id, {"aida_status": "failed"})
+            self.db.update_job(job_id, {"aida_status": "failed"})
             self.db.append_job_log(job_id, _evt("error", "job_failed", {"error": str(e)}))
 
+            # Atualiza documentos pendentes para failed
             for d in self.db.list_documents_by_project(project_id):
-                if d["status"] in ("queued", "processing", "created"):
-                    self.db.update_document(d["id"], {"status": "failed", "error": str(e)})
+                if d["aida_status"] in ("queued", "processing", "created"):
+                    self.db.update_document(d["aida_id"], {"aida_status": "failed", "aida_error": str(e)})
 
 def _evt(level: str, event: str, extra: dict | None = None) -> dict:
     d = {

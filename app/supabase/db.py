@@ -11,37 +11,49 @@ class DB:
 
     def create_project(self, name: str, project_id: str | None = None) -> dict[str, Any]:
         pid = project_id or str(uuid4())
-        payload = {"id": pid, "name": name, "status": "created"}
-        res = self.sb.table("projects").insert(payload).execute()
+        # Tabela: aida_projects
+        payload = {
+            "aida_id": pid,
+            "aida_name": name,
+            "aida_status": "created"
+        }
+        res = self.sb.table("aida_projects").insert(payload).execute()
         return res.data[0]
 
     def get_project(self, project_id: str) -> dict[str, Any] | None:
-        res = self.sb.table("projects").select("*").eq("id", project_id).limit(1).execute()
+        res = self.sb.table("aida_projects").select("*").eq("aida_id", project_id).limit(1).execute()
         return res.data[0] if res.data else None
 
     def update_project(self, project_id: str, patch: dict[str, Any]) -> None:
-        self.sb.table("projects").update(patch).eq("id", project_id).execute()
+        # Patch deve conter chaves com prefixo aida_ (ex: aida_status)
+        self.sb.table("aida_projects").update(patch).eq("aida_id", project_id).execute()
 
     def create_job(self, project_id: str) -> dict[str, Any]:
-        res = self.sb.table("jobs").insert({"project_id": project_id, "status": "created"}).execute()
+        # Tabela: aida_jobs
+        payload = {
+            "aida_project_id": project_id,
+            "aida_status": "created"
+        }
+        res = self.sb.table("aida_jobs").insert(payload).execute()
         return res.data[0]
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
-        res = self.sb.table("jobs").select("*").eq("id", job_id).limit(1).execute()
+        res = self.sb.table("aida_jobs").select("*").eq("aida_id", job_id).limit(1).execute()
         return res.data[0] if res.data else None
 
     def update_job(self, job_id: str, patch: dict[str, Any]) -> None:
-        self.sb.table("jobs").update(patch).eq("id", job_id).execute()
+        self.sb.table("aida_jobs").update(patch).eq("aida_id", job_id).execute()
 
     def append_job_log(self, job_id: str, event: dict[str, Any]) -> None:
         job = self.get_job(job_id)
         if not job:
             return
-        logs = job.get("logs") or []
+        # Coluna: aida_logs
+        logs = job.get("aida_logs") or []
         if not isinstance(logs, list):
             logs = []
         logs.append(event)
-        self.update_job(job_id, {"logs": logs})
+        self.update_job(job_id, {"aida_logs": logs})
 
     def create_document(
         self,
@@ -50,18 +62,21 @@ class DB:
         storage_path: str,
         original_filename: str,
     ) -> dict[str, Any]:
-        res = self.sb.table("documents").insert({
-            "project_id": project_id,
-            "doc_type": doc_type,
-            "storage_path": storage_path,
-            "original_filename": original_filename,
-            "status": "created",
-        }).execute()
+        # Tabela: aida_documents
+        payload = {
+            "aida_project_id": project_id,
+            "aida_doc_type": doc_type,
+            "aida_storage_path": storage_path,
+            "aida_original_filename": original_filename,
+            "aida_status": "created",
+        }
+        res = self.sb.table("aida_documents").insert(payload).execute()
         return res.data[0]
 
     def update_document(self, doc_id: str, patch: dict[str, Any]) -> None:
-        self.sb.table("documents").update(patch).eq("id", doc_id).execute()
+        self.sb.table("aida_documents").update(patch).eq("aida_id", doc_id).execute()
 
     def list_documents_by_project(self, project_id: str) -> list[dict[str, Any]]:
-        res = self.sb.table("documents").select("*").eq("project_id", project_id).execute()
+        # Busca por aida_project_id
+        res = self.sb.table("aida_documents").select("*").eq("aida_project_id", project_id).execute()
         return res.data or []
