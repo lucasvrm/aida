@@ -29,21 +29,51 @@ class DB:
         # Patch deve conter chaves com prefixo aida_ (ex: aida_status)
         self.sb.table("aida_projects").update(patch).eq("aida_id", project_id).execute()
 
-    def create_job(self, project_id: str) -> dict[str, Any]:
+    def create_job(self, project_id: str, run_number: int | None = None) -> dict[str, Any]:
         # Tabela: aida_jobs
         payload = {
             "aida_project_id": project_id,
-            "aida_status": "created"
+            "aida_status": "created",
+            "aida_run_number": run_number or 1,
         }
         res = self.sb.table("aida_jobs").insert(payload).execute()
         return res.data[0]
+
+    def list_jobs_by_project(self, project_id: str) -> list[dict[str, Any]]:
+        res = (
+            self.sb.table("aida_jobs")
+            .select("*")
+            .eq("aida_project_id", project_id)
+            .execute()
+        )
+        return res.data or []
+
+    def get_next_run_number(self, project_id: str) -> int:
+        res = (
+            self.sb.table("aida_jobs")
+            .select("aida_run_number")
+            .eq("aida_project_id", project_id)
+            .order("aida_run_number", desc=True)
+            .limit(1)
+            .execute()
+        )
+        latest = res.data[0]["aida_run_number"] if res.data else 0
+        return (latest or 0) + 1
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         res = self.sb.table("aida_jobs").select("*").eq("aida_id", job_id).limit(1).execute()
         return res.data[0] if res.data else None
 
-    def update_job(self, job_id: str, patch: dict[str, Any]) -> None:
-        self.sb.table("aida_jobs").update(patch).eq("aida_id", job_id).execute()
+    def update_job(self, job_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
+        res = (
+            self.sb
+            .table("aida_jobs")
+            .update(patch)
+            .eq("aida_id", job_id)
+            .select("*, aida_updated_at")
+            .execute()
+        )
+        return res.data[0] if res.data else None
 
     def append_job_log(self, job_id: str, event: dict[str, Any]) -> None:
         job = self.get_job(job_id)

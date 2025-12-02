@@ -39,9 +39,10 @@ create table if not exists public.aida_documents (
   aida_storage_path text not null,
   aida_original_filename text not null,
   aida_extracted_payload jsonb,
-  aida_status text not null default 'created',
+  aida_status text not null default 'created' check (aida_status in ('created','processing','ready','failed')),
   aida_error text,
-  aida_created_at timestamptz not null default now()
+  aida_created_at timestamptz not null default now(),
+  aida_updated_at timestamptz not null default now()
 );
 
 create index if not exists idx_aida_documents_project_id on public.aida_documents(aida_project_id);
@@ -63,6 +64,7 @@ create table if not exists public.aida_jobs (
   aida_id uuid primary key default gen_random_uuid(),
   aida_project_id uuid not null references public.aida_projects(aida_id) on delete cascade,
   aida_status text not null default 'created' check (aida_status in ('created','processing','ready','failed')),
+  aida_run_number int not null default 1,
   aida_logs jsonb not null default '[]'::jsonb,
   aida_created_at timestamptz not null default now(),
   aida_updated_at timestamptz not null default now()
@@ -94,6 +96,12 @@ end $$;
 drop trigger if exists trg_aida_projects_updated_at on public.aida_projects;
 create trigger trg_aida_projects_updated_at
 before update on public.aida_projects
+for each row execute function public.aida_set_updated_at();
+
+-- Trigger para aida_documents
+drop trigger if exists trg_aida_documents_updated_at on public.aida_documents;
+create trigger trg_aida_documents_updated_at
+before update on public.aida_documents
 for each row execute function public.aida_set_updated_at();
 
 -- Trigger para aida_jobs
