@@ -30,39 +30,101 @@ from app.supabase.storage import Storage
 from app.template.writer import write_filled_xlsx
 
 class JobService:
-    def __init__(self):
-        self.db = DB()
-        self.storage = Storage()
+    def __init__(self, db: DB | None = None, storage: Storage | None = None):
+        self.db = db or DB()
+        self.storage = storage or Storage()
 
     async def create_job(self, req: CreateJobRequest) -> CreateJobResponse:
         if req.project_id:
             project = self.db.get_project(req.project_id)
             if not project:
                 raise NotFound("project_id não existe.")
+            if project.get("aida_status") in ("failed", "processing"):
+                raise Conflict("Não é possível criar job para projetos em processamento ou falha.")
             project_id = req.project_id
         else:
             project = self.db.create_project(req.project_name or "Sem nome")
             project_id = project["aida_id"]
 
-        # Atualiza status do projeto para processing
-        self.db.update_project(project_id, {"aida_status": "processing"})
+        # Atualiza status do projeto para processing e limpa estado consolidado anterior
+        self.db.update_project(
+            project_id,
+            {
+                "aida_status": "processing",
+                "aida_consolidated_payload": None,
+                "aida_output_xlsx_path": None,
+            },
+        )
 
-        job = self.db.create_job(project_id)
+        run_number = self.db.get_next_run_number(project_id)
+
+        job = self.db.create_job(project_id, run_number=run_number)
         job_id = job["aida_id"]
-        
-        self.db.append_job_log(job_id, _evt("info", "job_created", {"project_id": project_id}))
+
+        self.db.append_job_log(job_id, _evt("info", "job_created", {"project_id": project_id, "run_number": run_number}))
 
         for d in req.documents:
-            doc = self.db.create_document(project_id, d.doc_type.value, d.storage_path, d.original_filename)
-            # Atualiza status do documento para queued
-            self.db.update_document(doc["aida_id"], {"aida_status": "queued"})
+            self.db.create_document(project_id, d.doc_type.value, d.storage_path, d.original_filename)
 
         # Atualiza status do job para processing
         self.db.update_job(job_id, {"aida_status": "processing"})
-        
-        return CreateJobResponse(job_id=job_id, project_id=project_id, status="processing")
+
+        return CreateJobResponse(job_id=job_id, project_id=project_id, status="processing", run_number=run_number)
+
+    async def reprocess_project(self, project_id: str) -> CreateJobResponse:
+        project = self.db.get_project(project_id)
+        if not project:
+            raise NotFound("Projeto não existe.")
+
+        documents = self.db.list_documents_by_project(project_id)
+        if not documents:
+            raise Conflict("Projeto não possui documentos para reprocessar.")
+
+        run_number = self.db.get_next_run_number(project_id)
+
+        # Reset state for new run
+        self.db.update_project(
+            project_id,
+            {
+                "aida_status": "processing",
+                "aida_consolidated_payload": None,
+                "aida_output_xlsx_path": None,
+            },
+        )
+
+        for doc in documents:
+            self.db.update_document(
+                doc["aida_id"],
+                {"aida_status": "queued", "aida_error": None, "aida_extracted_payload": None},
+            )
+
+        job = self.db.create_job(project_id, run_number=run_number)
+        job_id = job["aida_id"]
+
+        self.db.append_job_log(
+            job_id,
+            _evt("info", "job_reprocess_requested", {"project_id": project_id, "run_number": run_number}),
+        )
+        self.db.update_job(job_id, {"aida_status": "processing"})
+
+        return CreateJobResponse(job_id=job_id, project_id=project_id, status="processing", run_number=run_number)
 
     async def kickoff_job(self, job_id: str) -> None:
+        job = self.db.get_job(job_id)
+        if not job:
+            return
+
+        project_id = job.get("aida_project_id")
+        project = self.db.get_project(project_id) if project_id else None
+
+        if not project:
+            self._abort_job(job_id, "Projeto removido antes do início.", project_id)
+            return
+
+        if project.get("aida_status") == "failed":
+            self._abort_job(job_id, "Projeto está com status failed.", project_id)
+            return
+
         asyncio.create_task(run_in_threadpool(self._process_job_sync, job_id))
 
     async def get_job_status(self, job_id: str) -> JobStatusResponse:
@@ -77,6 +139,7 @@ class JobService:
             job_id=job["aida_id"],
             project_id=project_id,
             status=job["aida_status"],
+            run_number=job.get("aida_run_number"),
             logs=job.get("aida_logs") or [],
             documents=[
                 JobDocProgress(
@@ -132,10 +195,15 @@ class JobService:
         job = self.db.get_job(job_id)
         if not job:
             return
-        
+
         project_id = job["aida_project_id"]
         project = self.db.get_project(project_id)
         if not project:
+            self._abort_job(job_id, "Projeto foi deletado durante o processamento.", project_id)
+            return
+
+        if project.get("aida_status") == "failed":
+            self._abort_job(job_id, "Projeto está com status failed.", project_id)
             return
 
         try:
@@ -162,7 +230,7 @@ class JobService:
                 if ext in (".xlsx", ".xlsm", ".csv"):
                     res = extract_tabular(doc_type, content, ext)
                     extracted_docs.append(res.payload)
-                    self.db.update_document(doc_id, {"aida_status": "done", "aida_extracted_payload": res.payload})
+                    self.db.update_document(doc_id, {"aida_status": "ready", "aida_extracted_payload": res.payload})
                     if res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": res.warnings}))
                     continue
@@ -196,7 +264,7 @@ class JobService:
                         if table_name and rows:
                             extracted_docs.append({"table": table_name, "rows": rows})
 
-                    self.db.update_document(doc_id, {"aida_status": "done", "aida_extracted_payload": patch})
+                    self.db.update_document(doc_id, {"aida_status": "ready", "aida_extracted_payload": patch})
                     if text_res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": text_res.warnings}))
                     continue
@@ -212,11 +280,11 @@ class JobService:
             project_name = project["aida_name"]
             safe_name = safe_filename(project_name)
             out_filename = f"Planilha KOA PE - {safe_name}.xlsx"
-            out_local = f"/tmp/{project_id}_{out_filename}"
+            out_local = f"/tmp/{project_id}_run-{job.get('aida_run_number') or 1}_{out_filename}"
             
             write_filled_xlsx(consolidated, project_name=project_name, out_path=out_local)
 
-            out_storage_path = f"{project_id}/{out_filename}"
+            out_storage_path = self._build_output_storage_path(project_id, job.get("aida_run_number"), out_filename)
             content_out = Path(out_local).read_bytes()
             self.storage.upload(
                 settings.SUPABASE_OUTPUTS_BUCKET,
@@ -237,8 +305,12 @@ class JobService:
 
             # Atualiza documentos pendentes para failed
             for d in self.db.list_documents_by_project(project_id):
-                if d["aida_status"] in ("queued", "processing", "created"):
+                if d["aida_status"] in ("processing", "created"):
                     self.db.update_document(d["aida_id"], {"aida_status": "failed", "aida_error": str(e)})
+
+    def _abort_job(self, job_id: str, reason: str, project_id: str | None = None) -> None:
+        self.db.update_job(job_id, {"aida_status": "failed"})
+        self.db.append_job_log(job_id, _evt("error", "job_aborted", {"reason": reason, "project_id": project_id}))
 
 def _evt(level: str, event: str, extra: dict | None = None) -> dict:
     d = {
@@ -249,3 +321,4 @@ def _evt(level: str, event: str, extra: dict | None = None) -> dict:
     if extra:
         d.update(extra)
     return d
+    
