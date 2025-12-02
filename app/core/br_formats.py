@@ -7,6 +7,7 @@ def strip_accents(s: str) -> str:
 
 def normalize_header(s: str) -> str:
     s = s or ""
+    s = s.replace("²", "")
     s = s.replace("\u00a0", " ")
     s = s.replace("\n", " ")
     s = re.sub(r"\s+", " ", s).strip()
