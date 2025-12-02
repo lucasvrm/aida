@@ -1,4 +1,4 @@
-# koa-doc-pipeline (FastAPI + Supabase + Gemini)
+# AIDA (FastAPI + Supabase + Gemini)
 
 Microserviço Python (Render) para:
 1) baixar docs do Supabase Storage,
