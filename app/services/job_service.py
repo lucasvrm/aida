@@ -62,9 +62,7 @@ class JobService:
         self.db.append_job_log(job_id, _evt("info", "job_created", {"project_id": project_id, "run_number": run_number}))
 
         for d in req.documents:
-            doc = self.db.create_document(project_id, d.doc_type.value, d.storage_path, d.original_filename)
-            # Atualiza status do documento para queued
-            self.db.update_document(doc["aida_id"], {"aida_status": "queued"})
+            self.db.create_document(project_id, d.doc_type.value, d.storage_path, d.original_filename)
 
         # Atualiza status do job para processing
         self.db.update_job(job_id, {"aida_status": "processing"})
@@ -210,7 +208,7 @@ class JobService:
                 if ext in (".xlsx", ".xlsm", ".csv"):
                     res = extract_tabular(doc_type, content, ext)
                     extracted_docs.append(res.payload)
-                    self.db.update_document(doc_id, {"aida_status": "done", "aida_extracted_payload": res.payload})
+                    self.db.update_document(doc_id, {"aida_status": "ready", "aida_extracted_payload": res.payload})
                     if res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": res.warnings}))
                     continue
@@ -244,7 +242,7 @@ class JobService:
                         if table_name and rows:
                             extracted_docs.append({"table": table_name, "rows": rows})
 
-                    self.db.update_document(doc_id, {"aida_status": "done", "aida_extracted_payload": patch})
+                    self.db.update_document(doc_id, {"aida_status": "ready", "aida_extracted_payload": patch})
                     if text_res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": text_res.warnings}))
                     continue
@@ -285,7 +283,7 @@ class JobService:
 
             # Atualiza documentos pendentes para failed
             for d in self.db.list_documents_by_project(project_id):
-                if d["aida_status"] in ("queued", "processing", "created"):
+                if d["aida_status"] in ("processing", "created"):
                     self.db.update_document(d["aida_id"], {"aida_status": "failed", "aida_error": str(e)})
 
     @staticmethod

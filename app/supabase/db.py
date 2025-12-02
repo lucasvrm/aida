@@ -63,8 +63,16 @@ class DB:
         res = self.sb.table("aida_jobs").select("*").eq("aida_id", job_id).limit(1).execute()
         return res.data[0] if res.data else None
 
-    def update_job(self, job_id: str, patch: dict[str, Any]) -> None:
-        self.sb.table("aida_jobs").update(patch).eq("aida_id", job_id).execute()
+    def update_job(self, job_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
+        res = (
+            self.sb
+            .table("aida_jobs")
+            .update(patch)
+            .eq("aida_id", job_id)
+            .select("*, aida_updated_at")
+            .execute()
+        )
+        return res.data[0] if res.data else None
 
     def append_job_log(self, job_id: str, event: dict[str, Any]) -> None:
         job = self.get_job(job_id)
