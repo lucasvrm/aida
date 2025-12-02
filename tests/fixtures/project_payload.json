@@ -1,0 +1,10 @@
+{
+  "project_id": "proj-123",
+  "name": "Projeto de Teste",
+  "status": "ready",
+  "consolidated_payload": {
+    "summary": "Dados consolidados"
+  },
+  "output_xlsx_path": "proj-123/arquivo.xlsx",
+  "output_signed_url": "https://signed.example.com/proj-123/arquivo.xlsx"
+}
