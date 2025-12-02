@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
+from app.core.errors import NotFound
 from app.supabase.client import supabase_client
 
 class DB:
@@ -101,6 +102,11 @@ class DB:
             "aida_status": "created",
         }
         res = self.sb.table("aida_documents").insert(payload).execute()
+        if not getattr(res, "data", None):
+            raise NotFound(
+                "Projeto não existe ou foi removido.",
+                details=getattr(res, "error", None),
+            )
         return res.data[0]
 
     def update_document(self, doc_id: str, patch: dict[str, Any]) -> None:
