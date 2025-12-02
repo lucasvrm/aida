@@ -25,16 +25,23 @@ from app.models.schemas import (
     PdfExtractionResponse,
 )
 from app.services.consolidation import consolidate
+from app.services.webhook import send_webhook_background
 from app.supabase.db import DB
 from app.supabase.storage import Storage
 from app.template.writer import write_filled_xlsx
 
 class JobService:
-    def __init__(self, db: DB | None = None, storage: Storage | None = None):
-        self.db = db or DB()
-        self.storage = storage or Storage()
+    def __init__(self):
+        self.db = DB()
+        self.storage = Storage()
+        try:
+            self.loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self.loop = None
 
     async def create_job(self, req: CreateJobRequest) -> CreateJobResponse:
+        webhook_url = str(req.webhook_url) if req.webhook_url else None
+
         if req.project_id:
             project = self.db.get_project(req.project_id)
             if not project:
@@ -42,8 +49,11 @@ class JobService:
             if project.get("aida_status") in ("failed", "processing"):
                 raise Conflict("Não é possível criar job para projetos em processamento ou falha.")
             project_id = req.project_id
+            if webhook_url and project.get("aida_webhook_url") != webhook_url:
+                self.db.update_project(project_id, {"aida_webhook_url": webhook_url})
+                project["aida_webhook_url"] = webhook_url
         else:
-            project = self.db.create_project(req.project_name or "Sem nome")
+            project = self.db.create_project(req.project_name or "Sem nome", webhook_url=webhook_url)
             project_id = project["aida_id"]
 
         # Atualiza status do projeto para processing e limpa estado consolidado anterior
@@ -186,7 +196,7 @@ class JobService:
             
         url = self.storage.signed_url(
             settings.SUPABASE_OUTPUTS_BUCKET, 
-            p["aida_output_xlsx_path"], 
+            p["aida_output_xlsx_path"],
             settings.SIGNED_URL_TTL_SECONDS
         )
         return OutputUrlResponse(project_id=project_id, signed_url=url)
@@ -208,6 +218,7 @@ class JobService:
 
         try:
             self.db.append_job_log(job_id, _evt("info", "job_processing_started"))
+            self._send_webhook(project, job, "job_processing_started")
             docs = self.db.list_documents_by_project(project_id)
 
             extracted_docs: list[dict] = []
@@ -222,6 +233,7 @@ class JobService:
 
                 self.db.update_document(doc_id, {"aida_status": "processing", "aida_error": None})
                 self.db.append_job_log(job_id, _evt("info", "doc_processing", {"doc_id": doc_id, "doc_type": doc_type_str}))
+                self._send_webhook(project, job, "doc_processing", {"doc_id": doc_id, "doc_type": doc_type_str})
 
                 content = self.storage.download(storage_bucket, storage_path)
                 ext = Path(d["aida_original_filename"]).suffix.lower()
@@ -233,6 +245,7 @@ class JobService:
                     self.db.update_document(doc_id, {"aida_status": "ready", "aida_extracted_payload": res.payload})
                     if res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": res.warnings}))
+                        self._send_webhook(project, job, "doc_warnings", {"doc_id": doc_id, "warnings": res.warnings})
                     continue
 
                 # --- Extração: PDFs ---
@@ -267,6 +280,7 @@ class JobService:
                     self.db.update_document(doc_id, {"aida_status": "ready", "aida_extracted_payload": patch})
                     if text_res.warnings:
                         self.db.append_job_log(job_id, _evt("warn", "doc_warnings", {"doc_id": doc_id, "warnings": text_res.warnings}))
+                        self._send_webhook(project, job, "doc_warnings", {"doc_id": doc_id, "warnings": text_res.warnings})
                     continue
 
                 raise BadRequest(f"Extensão não suportada: {ext}", details={"doc_id": doc_id})
@@ -294,23 +308,60 @@ class JobService:
             )
 
             self.db.update_project(project_id, {"aida_status": "ready", "aida_output_xlsx_path": out_storage_path})
+            project["aida_status"] = "ready"
             self.db.update_job(job_id, {"aida_status": "ready"})
+            job["aida_status"] = "ready"
             self.db.append_job_log(job_id, _evt("info", "job_ready", {"output_path": out_storage_path}))
+            self._send_webhook(project, job, "job_ready", {"output_path": out_storage_path})
 
         except Exception as e:
             # Em caso de falha, atualiza tudo para failed
             self.db.update_project(project_id, {"aida_status": "failed"})
+            project["aida_status"] = "failed"
             self.db.update_job(job_id, {"aida_status": "failed"})
+            job["aida_status"] = "failed"
             self.db.append_job_log(job_id, _evt("error", "job_failed", {"error": str(e)}))
+            self._send_webhook(project, job, "job_failed", {"error": str(e)})
 
             # Atualiza documentos pendentes para failed
             for d in self.db.list_documents_by_project(project_id):
                 if d["aida_status"] in ("processing", "created"):
                     self.db.update_document(d["aida_id"], {"aida_status": "failed", "aida_error": str(e)})
 
-    def _abort_job(self, job_id: str, reason: str, project_id: str | None = None) -> None:
-        self.db.update_job(job_id, {"aida_status": "failed"})
-        self.db.append_job_log(job_id, _evt("error", "job_aborted", {"reason": reason, "project_id": project_id}))
+    def _send_webhook(
+        self,
+        project: dict,
+        job: dict,
+        event: str,
+        details: dict | None = None,
+    ) -> None:
+        url = project.get("aida_webhook_url")
+        if not url:
+            return
+
+        docs = self.db.list_documents_by_project(project["aida_id"])
+        payload = {
+            "event": event,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "project_id": project["aida_id"],
+            "job_id": job["aida_id"],
+            "project_status": project.get("aida_status"),
+            "job_status": job.get("aida_status"),
+            "documents": [
+                {
+                    "document_id": d["aida_id"],
+                    "doc_type": d["aida_doc_type"],
+                    "status": d["aida_status"],
+                    "error": d.get("aida_error"),
+                }
+                for d in docs
+            ],
+        }
+
+        if details:
+            payload["details"] = details
+
+        send_webhook_background(url, payload, loop=self.loop)
 
 def _evt(level: str, event: str, extra: dict | None = None) -> dict:
     d = {

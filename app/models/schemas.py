@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 from typing import Any, Literal
 from uuid import UUID
 
@@ -28,6 +28,7 @@ class DocumentIn(BaseModel):
 class CreateJobRequest(BaseModel):
     project_id: str | None = None
     project_name: str | None = None
+    webhook_url: HttpUrl | None = None
     documents: list[DocumentIn]
 
     @field_validator("project_id")

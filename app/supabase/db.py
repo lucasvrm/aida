@@ -10,14 +10,18 @@ class DB:
     def __init__(self):
         self.sb = supabase_client()
 
-    def create_project(self, name: str, project_id: str | None = None) -> dict[str, Any]:
+    def create_project(
+        self, name: str, project_id: str | None = None, webhook_url: str | None = None
+    ) -> dict[str, Any]:
         pid = project_id or str(uuid4())
         # Tabela: aida_projects
         payload = {
             "aida_id": pid,
             "aida_name": name,
-            "aida_status": "created"
+            "aida_status": "created",
         }
+        if webhook_url:
+            payload["aida_webhook_url"] = webhook_url
         res = self.sb.table("aida_projects").insert(payload).execute()
         return res.data[0]
 
