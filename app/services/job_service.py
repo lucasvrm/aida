@@ -39,6 +39,8 @@ class JobService:
             project = self.db.get_project(req.project_id)
             if not project:
                 raise NotFound("project_id não existe.")
+            if project.get("aida_status") in ("failed", "processing"):
+                raise Conflict("Não é possível criar job para projetos em processamento ou falha.")
             project_id = req.project_id
         else:
             project = self.db.create_project(req.project_name or "Sem nome")
@@ -63,6 +65,21 @@ class JobService:
         return CreateJobResponse(job_id=job_id, project_id=project_id, status="processing")
 
     async def kickoff_job(self, job_id: str) -> None:
+        job = self.db.get_job(job_id)
+        if not job:
+            return
+
+        project_id = job.get("aida_project_id")
+        project = self.db.get_project(project_id) if project_id else None
+
+        if not project:
+            self._abort_job(job_id, "Projeto removido antes do início.", project_id)
+            return
+
+        if project.get("aida_status") == "failed":
+            self._abort_job(job_id, "Projeto está com status failed.", project_id)
+            return
+
         asyncio.create_task(run_in_threadpool(self._process_job_sync, job_id))
 
     async def get_job_status(self, job_id: str) -> JobStatusResponse:
@@ -132,10 +149,15 @@ class JobService:
         job = self.db.get_job(job_id)
         if not job:
             return
-        
+
         project_id = job["aida_project_id"]
         project = self.db.get_project(project_id)
         if not project:
+            self._abort_job(job_id, "Projeto foi deletado durante o processamento.", project_id)
+            return
+
+        if project.get("aida_status") == "failed":
+            self._abort_job(job_id, "Projeto está com status failed.", project_id)
             return
 
         try:
@@ -239,6 +261,10 @@ class JobService:
             for d in self.db.list_documents_by_project(project_id):
                 if d["aida_status"] in ("queued", "processing", "created"):
                     self.db.update_document(d["aida_id"], {"aida_status": "failed", "aida_error": str(e)})
+
+    def _abort_job(self, job_id: str, reason: str, project_id: str | None = None) -> None:
+        self.db.update_job(job_id, {"aida_status": "failed"})
+        self.db.append_job_log(job_id, _evt("error", "job_aborted", {"reason": reason, "project_id": project_id}))
 
 def _evt(level: str, event: str, extra: dict | None = None) -> dict:
     d = {
