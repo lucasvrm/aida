@@ -53,6 +53,7 @@ class CreateJobResponse(BaseModel):
     job_id: str
     project_id: str
     status: Literal["processing"]
+    run_number: int
 
 class JobDocProgress(BaseModel):
     document_id: str
@@ -65,6 +66,7 @@ class JobStatusResponse(BaseModel):
     job_id: str
     project_id: str
     status: str
+    run_number: int | None = None
     logs: list[dict[str, Any]] = Field(default_factory=list)
     documents: list[JobDocProgress] = Field(default_factory=list)
 
